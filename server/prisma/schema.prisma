@@ -1,0 +1,131 @@
+// Prisma Schema for Anymit Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String               @id @default(uuid())
+  email               String               @unique
+  name                String
+  avatar              String
+  role                String               @default("employee") // "host" | "employee"
+  title               String
+  department          String
+  createdAt           DateTime             @default(now())
+  meetingsHosted      Meeting[]            @relation("HostMeetings")
+  meetingParticipants MeetingParticipant[]
+  assignmentsAssigned Assignment[]         @relation("AssigneeAssignments")
+  assignmentsCreated  Assignment[]         @relation("AssignerAssignments")
+  assignmentEditLogs  AssignmentEditLog[]
+  notifications       Notification[]
+}
+
+model Meeting {
+  id           String               @id @default(uuid())
+  code         String               @unique // 4-letter unique meeting code (e.g. "ABCD")
+  title        String
+  description  String?
+  status       String               @default("WAITING") // "WAITING" | "ACTIVE" | "ENDED"
+  hostId       String
+  host         User                 @relation("HostMeetings", fields: [hostId], references: [id])
+  createdAt    DateTime             @default(now())
+  startedAt    DateTime?
+  endedAt      DateTime?
+  agenda       String               @default("[]")
+  summary      String?
+  decisions    String               @default("[]")
+  participants MeetingParticipant[]
+  transcripts  Transcript[]
+  assignments  Assignment[]
+}
+
+model MeetingParticipant {
+  id        String   @id @default(uuid())
+  meetingId String
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  role      String   @default("Participant")
+  joinedAt  DateTime @default(now())
+}
+
+model Transcript {
+  id             String   @id @default(uuid())
+  meetingId      String
+  meeting        Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  speaker        String
+  timestamp      String
+  text           String   // Supports English, Hindi, and Hinglish
+  language       String   @default("en") // "en" | "hi" | "hinglish"
+  isActionItem   Boolean  @default(false)
+  actionTitle    String?
+  actionAssignee String?
+  actionDeadline String?
+  createdAt      DateTime @default(now())
+}
+
+model Assignment {
+  id               String              @id @default(uuid())
+  meetingId        String
+  meeting          Meeting             @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  title            String
+  description      String
+  assigneeId       String?             // Nullable if employee is unclear in transcript
+  assignee         User?               @relation("AssigneeAssignments", fields: [assigneeId], references: [id])
+  assignerId       String
+  assigner         User                @relation("AssignerAssignments", fields: [assignerId], references: [id])
+  deadline         String?             // Nullable if deadline is unclear in transcript
+  priority         String              @default("medium") // "low" | "medium" | "high"
+  status           String              @default("todo") // "todo" | "in_progress" | "submitted" | "approved" | "needs_review"
+  confidence       Float               @default(1.0)    // AI Confidence score (0.0 to 1.0)
+  evidenceRequired String
+  evidenceSnippet  String?             // Original transcript quote proof
+  evidence         Evidence?
+  editLogs         AssignmentEditLog[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+}
+
+model Evidence {
+  id           String     @id @default(uuid())
+  assignmentId String     @unique
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  speaker      String?    // Speaker who agreed in transcript
+  originalText String?    // Original transcript line
+  timestamp    String?    // Transcript timestamp
+  title        String
+  url          String?
+  notes        String?
+  type         String     @default("link")
+  submittedAt  DateTime   @default(now())
+}
+
+model AssignmentEditLog {
+  id            String     @id @default(uuid())
+  assignmentId  String
+  assignment    Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  editedById    String
+  editedBy      User       @relation(fields: [editedById], references: [id])
+  fieldEdited   String     // "title" | "assigneeId" | "deadline" | "status"
+  previousValue String?
+  newValue      String?
+  editedTime    DateTime   @default(now())
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  title      String
+  message    String
+  type       String   @default("system")
+  targetRole String   @default("all")
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}

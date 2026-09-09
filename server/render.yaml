@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: anymit-backend
+    env: node
+    region: singapore
+    plan: free
+    rootDir: server
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: DATABASE_URL
+        value: file:./dev.db
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: "*"
